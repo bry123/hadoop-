@@ -1,1 +1,85 @@
-hadoop fs -mdk /usr/filename
+安装Hadoop 2.7.1
+  vi /etc/proflie
+
+  1.安装JDK,设置环境变量
+  参考url:
+  http://www.linuxidc.com/Linux/2016-09/135556.htm
+  
+  
+  hadoop安装包url:
+  http://mirror.bit.edu.cn/apache/hadoop/common/hadoop-2.7.1/hadoop-2.7.1.tar.gz
+  
+  
+  hadoop配置参考:
+  http://blog.csdn.net/se7en_q/article/details/47258007
+  http://www.tuicool.com/articles/bmeUneM
+  http://jingyan.baidu.com/article/f00622283a76c0fbd3f0c839.html
+  
+  
+HDFS:hadoop的文件系统
+HDFS设计架构:
+  基本概念:
+  
+     块(Block): HDFS的文件被分成块进行存储  默认大小64MB  块是文件存储处理的逻辑单元
+	 HDFS的两类节点:
+	 
+	 
+	 NameNode:是管理节点,存放文件元数据
+	 (1)文件与数据块的映射表
+	 (2)数据块与数据节点的映射表
+	 
+	 DataNode:存放真正的数据块
+	    每个数据块3个副本，分布在两个机架内的三个节点
+		
+	心跳检测:DataNode定期向NameNode发送心跳消息
+	
+	HDFS特点:
+	  (1)数据冗余，硬件容错
+	  (2)流式的数据访问 （只能写和读  不能更改）
+	  (3)存储大文件
+	  
+hdfs操作:
+[root@localhost hadoop-2.7.1]# bin/hdfs dfs -mkdir /test
+[root@localhost hadoop-2.7.1]# bin/hdfs dfs -ls /
+上传到HDFS
+[root@localhost hadoop-2.7.1]# bin/hdfs dfs -put /root/hdfsDemo.docx  /test/	
+[root@localhost hadoop-2.7.1]# bin/hdfs dfs -ls /test/
+从HDFS下载到本地
+bin/hdfs dfs -get /test/hdfsDemo.docx  /root/hdfsDemo2.docx  
+  
+或者
+1、在HDFS中创建目录input 
+hadoop fs -mkdir /input 
+2、将本地的 LICENSE.txt上传到input中 
+hadoop fs -put LICENSE.txt /input 
+查看input目录下的文件 
+hadoop fs -ls /input 
+查看LICENSE.txt文件内容 
+hadoop fs -cat /input/LICENSE.txt
+执行jar包
+hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.1.jar wordcount /input /output/
+
+
+  
+	 
+MapReduce：一个大任务分成多个小的子任务(map),并行执行后，合并结果(reduce)
+
+基本概念:
+Job & Task:  一个任务 分成多个task   task分为:MapTask 和 ReduceTask
+JobTracker:  作业调度,分配任务（map任务 reduce任务），监控tasktracker状态；
+TaskTracker: 执行任务 报告状态；
+
+单词计数器的例子:
+http://blog.csdn.net/gulu_gulu_jp/article/details/51298164/
+http://blog.csdn.net/jiang0426/article/details/51396338
+
+
+
+
+
+hdfs dfs -mkdir -p /root/hive/warehouse
+hdfs dfs -mkdir -p /root/hive/tmp
+hdfs dfs -mkdir -p /root/hive/log
+hdfs dfs -chmod g+w /root/hive/warehouse
+hdfs dfs -chmod g+w /root/hive/tmp
+hdfs dfs -chmod g+w /root/hive/log
