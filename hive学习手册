@@ -1,0 +1,473 @@
+安装hive教程
+https://my.oschina.net/jackieyeah/blog/735424
+
+flume安装
+http://www.cnblogs.com/edisonchou/p/4445491.html
+启动命令 
+bin/flume-ng agent -n a1 -c conf -f conf/example.conf -Dflume.root.logger=DEBUG,console
+
+udf
+hive-contrib-2.1.1
+hive>add jar /usr/lib/hive/lib/hive-contrib-2.1.1-cdh4.1.2.jar;\
+
+关闭防火墙: systemctl stop firewalld 
+
+mysql登录 mysql -uroot -p123456
+
+mysql> create table name(name char(20),num char(20));
+
+csv导入mysql
+chmod 777 demo.csv 
+load data local infile '/tmp/demo.csv' into table name fields terminated by ',' optionally enclosed by '"'  escaped by '"' lines terminated by '\r\n';
+
+
+hive导入到csv
+hive -e "select * from userlogin" >> ttt.csv;
+
+
+常用的CLI命令 : （必须在hive模式下）
+	  1,清屏：Ctrl+L 或者 !clear+;
+	  2,查看数据仓库中的表:  show tables;
+	  3,查看数据仓库中的内置函数: show functions;
+	  4,查看表结构: desc 表名
+	  5,查看HDFS上的文件: 
+	       dfs -ls 目录     
+	       dfs -lsr 目录   递归查看这个目录下的文件
+	  6,执行Linux命令：!+命令
+	  7,执行HQL语句:  select * from test1;
+	  8,执行SQL文件:  source SQL文件
+	  9,进入hive静默模式: hive -S
+
+
+也可以直接在系统命令下直接写hive语句
+    hive -e 'show tables';	
+    hive -e 'select * from test1'; 	
+	hive -S -e 'select * from test1'; (静默模式:不会产生大量的调试下信息)	
+	
+	
+	
+hive web界面方式 ：
+   启动方式: hive --service hwi
+
+hive远程服务 :
+    启动方式: hive service hiveserver   
+	--------------------------------------------------------------------------------------------------------------------
+	--------------------------------------------------------------------------------------------------------------------
+Hive的数据类型:
+   1,基本数据类型:
+         整数类型:tinyint smallint int bugint
+         浮点数类型：float double
+         布尔类型： boolean
+         字符串类型:string
+    2,复杂类型:
+         数组     Map    结构体(struct)	
+	3,时间类型:	 Date   Timestamp
+
+	
+	
+创建表:
+    create table person (pid int , pname string, married boolean , salary double )	
+	row format delimited fields terminated by ',';
+
+	create table person 
+	(pid int , pname string, married boolean , salary double )
+     location'/mytable/hive/t1'	//存储的位置
+查询表结构
+    desc person	
+利用数组创建表
+    create table student (sid int, sname string , grade array<float> )	
+	插入的数据格式:{1,Tom, [60,90,97.5]}
+利用Map创建表
+    create table student (sid int, sname string , grade map<string,float> )	
+	插入的数据格式:{1,Tom, <'大学语文',98>}	
+	create table student (sid int, sname string , grade array<map<string,float>> )	
+	插入的数据格式:{1,Tom, [<'大学语文',98>,<'大学数学',78>]}	
+利用结构体创建表
+    create table student (sid int,info struct< sname:string,age:int, sex:string > )	
+	插入的数据格式:{1,{'bry',24,'男'}}	
+查询时间戳
+    select unix_timestamp();	//1424266431	
+通过查询出来的数据创建表(存储在文件中的数据的列已','分隔)	
+    create table t4 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' as select * from t3	
+给已经存在的表加一列
+    alter table t1 add columns (age int);
+删除一个表
+    drop table t1
+查看sql的执行计划	
+explain select * from t1 where gender='M'
+
+
+
+Hive 的数据模型：
+    表
+        Table 内部表	
+	    Partition 分区表
+		External Table 外部表
+		Bucket Table 桶表
+	视图
+	
+分区表创建实例：[学生数据 根据性别分区]	
+	 create table partition_table
+	 (sid int,sname string)
+	 partitioned by (gender string)
+	 ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 	
+	
+	插入数据 (t1中有数据)
+	insert into table partition_table partition(gender = 'M')
+	select sid,sname from t1 where gender='M'
+
+外部表 (数据存放在HDFS上)
+只是一个过程,加载数据和创建表同时完成，并不会移动到数据仓库目录中，只是
+与外部数据建立一个链接，当删除一个外部表的时候，仅删除该链接.
+    创建外部表的实例：	
+	create external table external_student (sid int, sname string ,age int)
+	ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 	
+	location '/input';(位置)
+	
+桶表
+   桶表是对数据进行哈希取值，然后放到不同文件中存储。	
+   创建桶表的实例：	
+   create table partition_table
+   (sid int,sname string,age int)
+	clustered by (sname) into 5 buckets;
+	
+视图
+   视图是一种虚表，是一个逻辑概念，可以跨越多张表.	
+   实例:
+   现在有两个表:dept(部门表),emp(员工表)
+	
+	dept (deptno,dname)
+	emp(empno,ename,job,mgr,hiredate,sal,comm,deptno)
+	
+	查询员工信息： 员工号，姓名，月薪，年薪，部门名称
+	
+	create view empinfo 
+	as 
+	select e.empno,e.ename,e.sal,e.sal*12 annlsal,d.dname
+    from emp e,dept dept
+    where e.deptno=d.deptno
+	
+	查看视图的结构跟查看标的结构一样
+	desc empinfo;
+	
+	
+Hive数据的导入
+   使用load语句：
+    load data [local] inpath 'filepath' [overwrite]  
+	into table tablename [partition (partcoll=val1,partcoll=val2...) ]
+	
+	local:表示从操作系统的目录导入 不写则从HDFS导入
+	inpath:路径
+	filepath:文件目录
+	overwrite:是否要覆盖表中存在的数据
+	tablename:表名
+	partition:分区
+	
+	实例1：现在操作系统(/root)下有三个txt文件 st1.txt,st2.txt,st3.txt
+	
+	(1)将st1.txt 数据导入t2中
+	load data local inpath'/root/st1.txt' into table t2;
+	
+	(2)将root目录下所有文件导入t3表中，并且覆盖原来的数据
+	load data local inpath'/root/' overwrite  into table t2;
+	(3)将文件导入分区表中
+	load data local inpath'/root/st1.txt'
+	into table t2 partition (gender='M');
+	
+	实例2:将HDFS中,/input/st1.txt 导入到 t3
+	load data inpath'/input/st1.txt'
+	into table t3;
+	
+	
+使用Sqoop	是将关系型数据库的内容进行导入导出  [需要下载配置,需要把对应数据库的驱动程序jar 放到sqoop的bin目录下]
+http://gaoxianwei.iteye.com/blog/2161113 
+    实例：
+	现在Oracle数据库中有一个员工表（emp）
+	
+	(1)使用Sqoop导入Oracle数据到HDFS中
+	./sqoop import --connect jdbc:oracle:thin:@192.168.0.113:1521:orcl --username scott 
+	--password bry --table emp --columns 'empno,ename,job,sal,deptno' -m 1 --target-dir '/sqoop/emp';
+	
+	参数解释:
+	//username  用户名
+	//password  密码
+	//--columns:指定将这个表的那些列导入进去
+	//-m 1   将MapReduce进程数设为1
+	//--target-dir  将数据导入到HDFS的那个目录上
+	
+	
+	
+	(2)使用Sqoop导入Oracle数据到Hive中(会自动创建一个表)
+	./sqoop import --hive-import --connect jdbc:oracle:thin:@192.168.0.113:1521:orcl --username scott 
+	--password bry --table emp --columns 'empno,ename,job,sal,deptno' -m 1 ;
+	
+	(3)使用Sqoop导入Oracle数据到Hive中,并指定表名(如果表明存在, 追加数据, 不存在自动建表)
+	./sqoop import --hive-import --connect jdbc:oracle:thin:@192.168.0.113:1521:orcl --username scott 
+	--password bry --table emp --columns 'empno,ename,job,sal,deptno' -m 1 --hive-table emp1;
+	
+	(4)使用Sqoop导入Oracle数据到Hive中,并使用where条件
+	./sqoop import --hive-import --connect jdbc:oracle:thin:@192.168.0.113:1521:orcl --username scott 
+	--password bry --table emp --columns 'empno,ename,job,sal,deptno' -m 1 --hive-table emp2 --where 'deptno=10';
+	
+	(5)使用Sqoop导入Oracle数据到Hive中,并使用查询语句[查询工资小于2000的员工]  
+	这种情况必须写导出的路径，当然也可以指定表的名称   --table emp 不能写  and $conditions必须写
+	./sqoop import --hive-import --connect jdbc:oracle:thin:@192.168.0.113:1521:orcl --username scott 
+	--password bry  -m 1 --query 'select * from emp where sal < 2000 and $conditions' --target-dir '/sqoop/emp5' --hive-table emp5;
+	
+	(6)使用Sqoop将Hive中的数据导出到Oracle中     '/input/st1.txt'对应HDFS的路径  oracle中的这个表得事先建好,字段名称得相同
+        ./sqoop export --hive-import --connect jdbc:oracle:thin:@192.168.0.113:1521:orcl --username scott 
+	--password bry -m 1 --table emp5 --export-dir '/input/st1.txt'
+	
+	
+	
+	
+Hive的数据查询
+	简单查询(可以运用简单的表达式):
+	hive> set hive.fetch.task.conversion=more;开启这个模式以后 简单的查询就不会去Hadoop查询了
+	1> 查询所有员工信息
+	   select * from emp;
+	2> 查询员工信息: 员工号 姓名 月薪 年薪 奖金(comm)  年收入
+	   select empno , ename , sal , sal*12, comm , sal*12+nvl(comm,0) from emp;
+	   解释；nvl(comm,0)　如果奖金为空 赋值为0
+    3> 查询奖金为空的员工
+	   select * from emp where comm is null;	   
+	4>使用distinct来去掉重复记录
+	   select distinct  empno from emp
+	
+	
+	
+	过滤查询:
+	1>查询10号部门的员工
+	  select * from emp where deptno = 10;
+	2>查询名叫KING的员工
+	  select * from emp where empname = 'KING';
+	3>查询部门号是10，薪水小于2000的员工
+	  select * from emp where  deptno = 10 and sal<2000;
+	4>查询名字以S打头的员工 （模糊查询）
+	  select * from emp where empname like 'S%';
+	5>查询名字中含有下划线的员工 （模糊查询）下划线代表任意一个字符,需要使用转义字符\\_
+	  select * from emp where empname like '%\\_%';
+	
+	
+	
+	排序查询:
+	order by 后面 跟：列，表达式，别名，序号
+	1>查询员工信息:员工号 姓名 月薪 按照月薪升序排序
+	  select empno,ename,sal from emp order by sal asc;
+	2>查询员工信息:员工号 姓名 月薪 年薪 按照年薪升序排序
+	  select empno,ename,sal,sal*12 from emp order by sal*12 asc;
+	  select empno,ename,sal,sal*12 annsal from emp order by annsal asc;[别名]
+	  select empno,ename,sal,sal*12 annsal from emp order by 4 asc;[序号]
+	  注：使用序号排序前提配置
+	  hive> set hive.groupby.orderby.positon.alias=true;
+	3>查询员工信息，按照奖金排序 奖金comm可能为空        --null排序:升序：null在最前面，降序：null在最后面
+	  select empno,ename,sal.comm from emp order by comm desc;
+	
+	
+	
+	hive的函数:
+	  数学函数:
+	  (1)round:四舍五入  2个参数  第一个参数对谁进行四舍五入  第二个参数是保留几位小数
+	  select round(45.926,2); //45.93
+	  select round(45.926,0); //46
+	  select round(45.926,-1); //50
+	  select round(45.926,-2); //0
+	  
+	  
+	  (2)ceil:向上取整
+	  select ceil(45.9); //46
+	  
+	  
+	  (3)floor:向下取整
+	  select floor(45.9); //45
+	  
+	  
+	  字符函数:
+	  (1)lower:把字符串转成小写
+	  (2)upper:把字符串转成大写
+	  select lower('Hollo World'); //hello world
+	  
+	  
+	  (3)length:字符串长度(字符数)
+	  select length('Hollo World'); //11
+	  select length('你好'); //2
+	  
+	  (4)concat:拼加字符串
+	  select concat('Hello','World'); //Hello World
+	  
+	  (5)substr:求一个字符串的子串
+	  substr(a,b):从a中，第b位开始取，取右边所有字符
+	  select substr('Hello World',3); //llo World
+	  
+	  substr(a,b,c):从a中，第b位开始取，取c个字符
+	  select substr('Hello World',3,5); //llo W
+	  
+	  (6)trim:去掉字符串的前后空格
+	  
+	  (7)lpad:左填充
+	  已有字符串'abcd' 左填充10位
+	  select lpad('abcd',10,*); // ******abcd
+	  
+	  (8)rpad:右填充
+	
+	
+	收集函数和转换函数:
+	   (1)收集函数：size
+	   select size(map(1,'Tom',2,'Mary')); //2
+	   
+	   (2)转换函数: cast
+	   select cast(1 as bigint); //1(长整型)
+	   select cast(1 as float);  //1.0
+	   select cast('2017-05-01' as date); //2017-05-01
+	   
+	   
+	   
+	日期函数: 
+        (1)to_date:取出一个日期字符串 '日期' 的部分
+		select to_date('2017-05-01 11:05:25'); //2017-05-01
+		
+        (2)year	:取年份
+        (3)month:取月份
+        (4)day	：取日期	
+		select year('2017-05-01 11:05:25'),month('2017-05-01 11:05:25'),day('2017-05-01 11:05:25');  //2017  5   1
+		
+		
+		(5)weekofyear: 一年中的第几个星期
+		select weekofyear('2017-05-01 11:05:25');  //18
+		
+		(6)datediff:两个日期差了多少天
+		select datediff('2017-05-01 11:05:25','2016-05-01 11:05:25'); //365
+		
+		(7)date_add:在一个日期值上，加上多少天
+		select date_add('2017-05-01 11:05:25',2);  //2017-05-03
+		
+		(8)date_sub:在一个日期值上，减去多少天
+	    select date_sub('2017-05-01 11:05:25',2);  //2017-04-29
+	
+	
+	
+	条件函数:
+	     (1)coalesce:从左到右返回第一个不为null的值
+		 select comm,sal,coalesce(comm,sal) from emp;
+		 
+		 (2)case...when...:条件表达式 [必须写在一行，不能换行]
+		 例子：给员工涨工资 总裁涨1000，经理涨800，其他400
+	     select ename,job,sal,case job when 'PRESIDENT'then sal+1000 when 'MANAGER' then sal+800 else  sal+400 end from emp;
+	
+	
+	
+	聚合函数:
+	count:
+	sum:
+	min:
+	max:
+	avg:
+	
+	select count(*),sum(sal),min(sal),max(sal),avg(sal) from emp;
+	
+	
+	表生成函数：
+	explode
+	
+	select explode(map(1,'Tom',2,'Mary',3,'Mike')); //新生成一个表 每一个键值对生成一行数据
+	
+	
+	
+	Hive的表连接:
+	   等值连接:( = )
+	     例：查询员工号，姓名，月薪，部门名称
+		 select e.empno,e.ename,e.sal,d.dname from emp e,dept d where e.deptno=d.deptno;
+	   
+	   不等值连接:( > < !=  between...and)
+	     例：查询员工号，姓名，月薪，工资级别
+		 select e.empno,e.ename,e.sal,s.grade from emp e,salgrade s where e.sal between s.losal and s.hisal;
+		 
+	   外连接:[左外连接  右外连接]
+	     例：按部门统计员工人数:部门号，部门名称，人数
+		 select d.deptno,d.dname,count(e.empno) from emp e right outer join dept d on (e.deptno=d.deptno)group by d.deptno,d.dname;
+		 
+	   自连接: 通过表的别名将同一张表视为多张表
+	     例：查询员工的姓名和员工的老板姓名
+	     select e.ename,b.ename from emp e,emp b where e.mgr=b.empno
+	
+	
+	
+	
+	hive的子查询
+	    (1)select e.ename from emp e where e.deptno in (select d.deptno from dept d where d.dname='SALES' or d.dname='ACCOUNTING')
+		
+		(2)select * from emp e where e.empno not in (select e1.mgr from emp e1 where e1.mgr is not null);
+	    //not in  后面的子查询返回的结果集不能为空
+	
+	
+	
+	hive的JDBC客户端操作:
+	   首先在Linux中启动hive远程服务   hive --service hiveserver
+	   //java工程导入jar包:
+	   commons-collections-3.1.jar
+	   commons-logging-1.1.1.jar
+	   hadoop-common-2.4.1.jar
+	   hive-exec-0.13.0.jar
+	   hive-jdbs-0.13.0.jar
+	   hive-metastore-0.13.0.jar
+	   hive-service-0.13.0.jar
+	   libfb303-0.9.0.jar
+	   log4j-1.2.16.jar
+	   slf4j-api-1.7.5.jar
+	   然后 右键--Build Path -- Add to Build Path  加入到java的运行环境中
+	   步骤:
+	   (1):获取连接
+	   (2):创建运行环境  
+	   (3):执行HQL语句
+	   (4):处理结果
+	   (5):释放资源
+	   
+	   
+	hive 的 Thrift客户端的操作:
+	
+	
+	hive 的自定义函数:
+	   hive的自定义函数(UDF):User Defined Function
+	   可以直接应用于select语句，对查询结果做格式化处理后，再输出内容
+	   
+	   自定义函数（java）写完之后--export --jar   把jar上传到hive的服务器上 
+	   执行命令行：
+	   hive> add jar /root/demo1/jar
+	       >;
+	   create temporary function myconcat as 'demo'; //demo  java文件的名称	   
+	
+	   select myconcat('hello','word');
+	
+	
+	
+	单系统指标（日维度）
+	1,单系统当日有登陆用户数，单系统内按华为员工ID去重
+	select systemid, count(distinct employeeid) from userlogin where to_date(inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss')) group by systemid;
+	2,单系统当日,首次登陆用户数，单系统内按华为员工ID去重
+	select u.systemid,count(distinct u.employeeid) from(select u2.systemid, u2.employeeid from userlogin u2 where to_date(u2.inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) u where u.employeeid not in (select u1.employeeid from userlogin u1 where to_date(u1.inputdate) < to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) group by u.systemid;
+	3,单系统当日累计曾经登陆用户数，单系统内按华为员工ID去重
+        select u.systemid,count(distinct u.employeeid) from(select u2.systemid, u2.employeeid from userlogin u2 where to_date(u2.inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) u where u.employeeid  in (select u1.employeeid from userlogin u1 where to_date(u1.inputdate) < to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) group by u.systemid; 	
+	4.单系统当日累计注册用户数，按华为员工ID去重。注册按主动新增还是被动权限开放定义还需讨论
+	5,单系统日活跃 / 单系统累计注册，当日单系统活跃用户占累计注册用户的百分比
+        6,单系统日累计新增 / 单系统日累计注册，当日单系统累计新增用户用户占累计注册用户的百分比
+	
+	
+	
+        
+        
+	大盘指标（日维度）
+	1,所有被接入系统中当日有登陆用户数，跨所有系统按华为员工ID去重
+	 select count(distinct employeeid) from userlogin where to_date(inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'));
+	2.跨所有被接入系统当日首次登陆用户数（纯新增），按华为员工ID去重
+	select count(distinct u.employeeid) from(select u2.employeeid from userlogin u2 where to_date(u2.inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) u where u.employeeid not in (select u1.employeeid from userlogin u1 where to_date(u1.inputdate) < to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss')));
+	3.跨所有被接入系统当日累计曾经登陆用户数，按华为员工ID去重
+	select count(distinct u.employeeid) from(select u2.systemid, u2.employeeid from userlogin u2 where to_date(u2.inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) u where u.employeeid  in (select u1.employeeid from userlogin u1 where to_date(u1.inputdate) < to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss')));
+	4,所有被接入系统当日累计注册用户数，按华为员工ID去重。注册按主动新增还是被动权限开放定义还需讨论
+        5,大盘日活跃 / 大盘日累计注册，当日大盘活跃用户占累计注册用户的百分比
+	6,大盘日累计新增 / 大盘日累计注册，当日大盘累计新增用户占累计注册用户的百分比
+	7,当日各系统日活跃 / 大盘日活跃，当日各系统活跃占大盘日活跃的百分比
+        select count1.systemid,concat(cast(round(count1.logincount/count2.totallogincount,2)*100 as int),"%") from (select systemid, count(distinct employeeid) logincount from userlogin where to_date(inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss')) group by systemid) count1,(select count(distinct employeeid) totallogincount from userlogin where to_date(inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss')))count2;
+	8,当日各系统累计新增 / 大盘日累计新增，当日各系统累计新增占大盘日累计新增的百分比
+	select count1.systemid,concat(cast(round(count1.logincount/count2.totallogincount,2)*100 as int),"%") from (select u.systemid,count(distinct u.employeeid) logincount from(select u2.systemid, u2.employeeid from userlogin u2 where to_date(u2.inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) u where u.employeeid  in (select u1.employeeid from userlogin u1 where to_date(u1.inputdate) < to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) group by u.systemid) count1,(select count(distinct u.employeeid) totallogincount from(select u2.systemid, u2.employeeid from userlogin u2 where to_date(u2.inputdate) = to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) u where u.employeeid  in (select u1.employeeid from userlogin u1 where to_date(u1.inputdate) < to_date(from_unixtime(unix_timestamp(),'yyyy-MM-dd HH:mm:ss'))) ) count2;
+	9,当日各系统累计注册 / 大盘日累计注册，当日各系统累计注册占大盘日累计注册的百分比
+   
